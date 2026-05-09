@@ -1,5 +1,5 @@
 const KLING_API_KEY = process.env.KLING_API_KEY || "apikey-c06c6129a2a24dbab85373fa86a493b4";
-const BASE_URL = "https://api.klingapi.com";
+const BASE_URL = "https://api.atlascloud.ai/api/v1";
 
 const stylePrompts = {
   "몽환적": "dreamy, surreal, soft glow, ethereal atmosphere, floating",
@@ -15,7 +15,7 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // POST: 영상 생성 요청 — 기다리지 않고 task_id만 바로 반환
+  // POST: 영상 생성 요청
   if (req.method === "POST") {
     try {
       const { dreamText, style } = req.body;
@@ -24,28 +24,28 @@ module.exports = async function handler(req, res) {
       const styleAdd = stylePrompts[style] || stylePrompts["몽환적"];
       const prompt = `${dreamText}, ${styleAdd}, cinematic quality, vertical video`;
 
-      const response = await fetch(`${BASE_URL}/v1/videos/text2video`, {
+      const response = await fetch(`${BASE_URL}/model/generateVideo`, {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${KLING_API_KEY}`,
           "Content-Type": "application/json"
         },
         body: JSON.stringify({
-          model: "kling-v2.6-pro",
+          model: "kwaivgi/kling-v2.6-pro/text-to-video",
           prompt: prompt,
           duration: 5,
-          aspect_ratio: "9:16",
-          mode: "standard"
+          aspect_ratio: "9:16"
         })
       });
 
       const data = await response.json();
-      console.log("Kling 응답:", JSON.stringify(data));
+      console.log("Atlas Cloud 응답:", JSON.stringify(data));
 
-      if (data.task_id) {
-        return res.status(200).json({ task_id: data.task_id });
+      const predictionId = data?.data?.id;
+      if (predictionId) {
+        return res.status(200).json({ task_id: predictionId });
       } else {
-        return res.status(500).json({ error: "task_id 없음", detail: JSON.stringify(data) });
+        return res.status(500).json({ error: "prediction_id 없음", detail: JSON.stringify(data) });
       }
 
     } catch (err) {
@@ -60,17 +60,17 @@ module.exports = async function handler(req, res) {
       const { taskId } = req.query;
       if (!taskId) return res.status(400).json({ error: "taskId 필요" });
 
-      const response = await fetch(`${BASE_URL}/v1/videos/${taskId}`, {
+      const response = await fetch(`${BASE_URL}/model/prediction/${taskId}`, {
         headers: { "Authorization": `Bearer ${KLING_API_KEY}` }
       });
 
       const data = await response.json();
       console.log("상태 확인:", JSON.stringify(data));
 
-      const status = data.task_status || data.status;
+      const status = data?.data?.status;
+      const videoUrl = data?.data?.output?.video_url || data?.data?.output?.[0]?.url;
 
-      if (status === "succeed" || status === "completed") {
-        const videoUrl = data.task_result?.videos?.[0]?.url || data.video_url;
+      if (status === "succeeded" || status === "completed") {
         return res.status(200).json({ status: "done", videoUrl });
       } else if (status === "failed") {
         return res.status(200).json({ status: "failed" });
