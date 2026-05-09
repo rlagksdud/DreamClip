@@ -390,11 +390,11 @@ async function startGenerate() {
 }
 
 async function pollVideoStatus(taskId) {
-  const maxAttempts = 60;
+  const maxAttempts = 120;
   let attempts = 0;
 
   while (attempts < maxAttempts) {
-    await sleep(5000);
+    await sleep(8000);
     attempts++;
 
     try {
